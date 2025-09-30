@@ -6,10 +6,17 @@ on:
     tags:
       - 'v*'        # 同时支持打标签触发
 
+env:
+  # 使用与 flutter-build.yml 相同的版本
+  RUST_VERSION: "1.75"
+  LLVM_VERSION: "15.0.6"
+  FLUTTER_VERSION: "3.24.5"
+  VCPKG_COMMIT_ID: "120deac3062162151622ca4860575a33844ba10b"
+
 jobs:
   build-windows:
     name: Build Windows MSI (Pre-Configured)
-    runs-on: windows-latest
+    runs-on: windows-2022 # 使用与成功配置相同的运行环境
 
     steps:
       - name: 📥 Checkout code
@@ -18,16 +25,30 @@ jobs:
           submodules: recursive
 
       - name: ⚙️ Setup Rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1
+        uses: actions-rust-lang/setup-rust-toolchain@v1 # 使用 v1 版本
         with:
-          toolchain: stable
+          toolchain: ${{ env.RUST_VERSION }}
           target: x86_64-pc-windows-msvc
           cache: true
 
-      - name: 📦 Install WiX
-        run: choco install wixtoolset -y --no-progress
+      - name: Install LLVM and Clang
+        uses: KyleMayes/install-llvm-action@v1
+        with:
+          version: ${{ env.LLVM_VERSION }}
 
-      # 核心步骤：直接修改默认配置文件，使其内置您的服务器参数
+      - name: Install flutter
+        uses: subosito/flutter-action@v2.12.0
+        with:
+          channel: "stable"
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgDirectory: C:\vcpkg
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
+          doNotCache: false
+
       - name: 🔧 Embed Server Configuration
         run: |
           # 创建目标目录
@@ -38,19 +59,15 @@ jobs:
           [options]
           key = "${{ secrets.RUSTDESK_KEY }}"
           relay-server = "${{ secrets.RUSTDESK_RELAY_SERVER }}"
-          api-server = "${{ secrets.RUSTDESK_API_SERVER }}"
-          # 锁定所有设置，使客户端界面中的设置选项灰化，无法修改
           lock-setting = "all"
-          # 强制使用中继模式，确保连接成功率
           enable-always-relay = true
-          # 可选：为所有客户端ID添加自定义前缀，便于识别
           custom-id-prefix = "MYCOMPANY-"
           "@
           $configContent | Out-File -FilePath "target\RustDesk.toml" -Encoding utf8
           Write-Host "✅ 服务器配置已嵌入到客户端程序中。"
 
       - name: 🚀 Build MSI Installer
-        run: python .\build.py
+        run: python .\build.py --portable --hwcodec --flutter --vram --skip-portable-pack
 
       - name: 📤 Upload Artifact
         uses: actions/upload-artifact@v4
