@@ -32,20 +32,20 @@ jobs:
         run: |
           # 创建目标目录
           New-Item -ItemType Directory -Force -Path "target" | Out-Null
-
+          
           # 将自定义配置写入构建系统最终会读取的默认位置
           $configContent = @"
-[options]
-key = "${{ secrets.RUSTDESK_KEY }}"
-relay-server = "${{ secrets.RUSTDESK_RELAY_SERVER }}"
-api-server = "${{ secrets.RUSTDESK_API_SERVER }}"
-# 锁定所有设置，使客户端界面中的设置选项灰化，无法修改
-#lock-setting = "all"
-# 强制使用中继模式，确保连接成功率
-enable-always-relay = true
-# 可选：为所有客户端ID添加自定义前缀，便于识别
-custom-id-prefix = "MYCOMPANY-"
-"@
+          [options]
+          key = "${{ secrets.RUSTDESK_KEY }}"
+          relay-server = "${{ secrets.RUSTDESK_RELAY_SERVER }}"
+          api-server = "${{ secrets.RUSTDESK_API_SERVER }}"
+          # 锁定所有设置，使客户端界面中的设置选项灰化，无法修改
+          lock-setting = "all"
+          # 强制使用中继模式，确保连接成功率
+          enable-always-relay = true
+          # 可选：为所有客户端ID添加自定义前缀，便于识别
+          custom-id-prefix = "MYCOMPANY-"
+          "@
           $configContent | Out-File -FilePath "target\RustDesk.toml" -Encoding utf8
           Write-Host "✅ 服务器配置已嵌入到客户端程序中。"
 
