@@ -25,7 +25,7 @@ jobs:
           submodules: recursive
 
       - name: ⚙️ Setup Rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1 # 使用 v1 版本
+        uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           toolchain: ${{ env.RUST_VERSION }}
           target: x86_64-pc-windows-msvc
@@ -46,7 +46,7 @@ jobs:
         uses: lukka/run-vcpkg@v11
         with:
           vcpkgDirectory: C:\vcpkg
-          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
+          vCPKGGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
           doNotCache: false
 
       - name: 🔧 Embed Server Configuration
@@ -59,12 +59,25 @@ jobs:
           [options]
           key = "${{ secrets.RUSTDESK_KEY }}"
           relay-server = "${{ secrets.RUSTDESK_RELAY_SERVER }}"
+          api-server = "${{ secrets.RUSTDESK_API_SERVER }}"
           lock-setting = "all"
           enable-always-relay = true
           custom-id-prefix = "MYCOMPANY-"
           "@
           $configContent | Out-File -FilePath "target\RustDesk.toml" -Encoding utf8
           Write-Host "✅ 服务器配置已嵌入到客户端程序中。"
+
+      - name: 🛠️ Apply Rust Compiler Workarounds
+        run: |
+          # 临时解决方案：修改Cargo配置以禁用特定的警告
+          # 这会创建一个临时的.cargo/config.toml文件
+          $cargoConfig = @"
+          [build]
+          rustflags = ["-A", "static_mut_refs", "-A", "unused_must_use"]
+          "@
+          New-Item -ItemType Directory -Force -Path ".cargo" | Out-Null
+          $cargoConfig | Out-File -FilePath ".cargo/config.toml" -Encoding utf8
+          Write-Host "✅ 已应用Rust编译器临时解决方案"
 
       - name: 🚀 Build MSI Installer
         run: python .\build.py --portable --hwcodec --flutter --vram --skip-portable-pack
