@@ -1,0 +1,59 @@
+name: Build Pre-Configured RustDesk Client
+
+on:
+  workflow_dispatch: # 允许手动触发构建
+  push:
+    tags:
+      - 'v*'        # 同时支持打标签触发
+
+jobs:
+  build-windows:
+    name: Build Windows MSI (Pre-Configured)
+    runs-on: windows-latest
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: ⚙️ Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v4
+        with:
+          toolchain: stable
+          target: x86_64-pc-windows-msvc
+          cache: true
+
+      - name: 📦 Install WiX
+        run: choco install wixtoolset -y --no-progress
+
+      # 核心步骤：直接修改默认配置文件，使其内置您的服务器参数
+      - name: 🔧 Embed Server Configuration
+        run: |
+          # 创建目标目录
+          New-Item -ItemType Directory -Force -Path "target" | Out-Null
+
+          # 将自定义配置写入构建系统最终会读取的默认位置
+          $configContent = @"
+[options]
+key = "${{ secrets.RUSTDESK_KEY }}"
+relay-server = "${{ secrets.RUSTDESK_RELAY_SERVER }}"
+api-server = "${{ secrets.RUSTDESK_API_SERVER }}"
+# 锁定所有设置，使客户端界面中的设置选项灰化，无法修改
+#lock-setting = "all"
+# 强制使用中继模式，确保连接成功率
+enable-always-relay = true
+# 可选：为所有客户端ID添加自定义前缀，便于识别
+custom-id-prefix = "MYCOMPANY-"
+"@
+          $configContent | Out-File -FilePath "target\RustDesk.toml" -Encoding utf8
+          Write-Host "✅ 服务器配置已嵌入到客户端程序中。"
+
+      - name: 🚀 Build MSI Installer
+        run: python .\build.py
+
+      - name: 📤 Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: RustDesk-Windows-Preconfigured
+          path: target/**/*.msi
